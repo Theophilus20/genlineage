@@ -60,7 +60,8 @@ def compose_final(spec: GenSpec, route: str) -> GenResult:
         tdir = Path(td)
 
         # 1 — normalize every shot to the same codec/size (gif or mp4 in)
-        norm = []
+        # 1 — normalize every shot to the same codec/size (gif or mp4 in)
+        norm, skipped = [], []
         for i, (data, ext) in enumerate(shots):
             src = tdir / f"shot{i}.{ext}"
             src.write_bytes(data)
@@ -73,6 +74,7 @@ def compose_final(spec: GenSpec, route: str) -> GenResult:
                       str(dst)])
                 norm.append(dst)
             except ProviderError:
+                skipped.append(i)
                 continue  # one bad shot must not sink the whole cut
         if not norm:
             raise ProviderError("compositor: no shot could be decoded")
@@ -130,7 +132,7 @@ def compose_final(spec: GenSpec, route: str) -> GenResult:
         if music:
             mpath = tdir / f"music.{music[1]}"
             mpath.write_bytes(music[0])
-            audio_inputs += ["-stream_loop", "-1", "-i", str(mpath)]
+            audio_inputs += ["-stream_loop", "-1", "-t", f"{total:.2f}", "-i", str(mpath)]
             filters.append(f"[{idx}:a]aresample=44100,volume=0.35[mu]")
             mix.append("[mu]")
             idx += 1
@@ -138,6 +140,7 @@ def compose_final(spec: GenSpec, route: str) -> GenResult:
         if mix:
             fc = (";".join(filters) + ";" + "".join(mix)
                   + f"amix=inputs={len(mix)}:duration=longest:dropout_transition=2,"
+                  + f"atrim=0:{total:.2f},"
                   + f"afade=t=in:d=0.4,afade=t=out:st={max(0.1, total-0.8):.2f}:d=0.8[aud]")
             _run([ff, "-y", "-i", str(video), *audio_inputs,
                   "-filter_complex", fc,
@@ -151,7 +154,7 @@ def compose_final(spec: GenSpec, route: str) -> GenResult:
     return GenResult(
         data=data, ext="mp4", provider=route, model="ffmpeg-concat-mix",
         cost_usd=0.0, latency_ms=int((time.time() - t0) * 1000),
-        params_used={"shots": len(shots), "grain": bool(grain),
+        params_used={"shots": len(shots), "shots_skipped": skipped, "grain": bool(grain),
                      "voiceover": bool(voice), "music": bool(music),
                      "transitions": "crossfade + fades", "soundtrack": "voiceover + ducked music"
                                    if voice and music else
