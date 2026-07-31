@@ -1,4 +1,4 @@
-# GEN_LINEAGE — Git for generative media
+# GEN_LINEAGE Git for generative media
 
 Every generation has a history. Genlineage records each output as an immutable,
 content addressed **commit** containing both the asset and the complete recipe
