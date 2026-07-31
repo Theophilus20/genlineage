@@ -6,13 +6,14 @@ import httpx
 from .config import settings
 
 
-def send(to: str, subject: str, html: str, reply_to: str | None = None) -> bool:
+def send(to: str, subject: str, html: str, reply_to: str | None = None,
+         from_addr: str | None = None) -> bool:
     if not settings.mail_enabled:
         return False
     try:
         r = httpx.post("https://api.resend.com/emails",
                        headers={"Authorization": f"Bearer {settings.RESEND_API_KEY}"},
-                       json={"from": settings.MAIL_FROM, "to": [to],
+                       json={"from": from_addr or settings.MAIL_FROM, "to": [to],
                              "subject": subject, "html": html,
                              **({"reply_to": [reply_to]} if reply_to else {})},
                        timeout=30)
@@ -82,7 +83,7 @@ def send_reset(to: str, url: str) -> bool:
         "<p>Someone asked to reset the password on this account. If that was "
         "you, set a new one below.</p>"
         "<p style='color:#8a8880;font-size:12px'>This link expires in 30 minutes "
-        "and can only be used once. If it wasn't you, ignore this email — nothing "
+        "and can only be used once. If it wasn't you, ignore this email nothing "
         "has changed.</p>",
         url, "Set a new password"))
 
@@ -92,8 +93,8 @@ def send_support_ack(to: str, ticket: str, subject: str) -> bool:
         "We got your message",
         f"<p>Thanks for reaching out about <b>{subject}</b>.</p>"
         f"<p>Your ticket is <b style='color:#e84b0f'>{ticket}</b> our team replies "
-        f"within one business day. Just reply to this email to add anything.</p>"))
-
+        f"within one business day. Just reply to this email to add anything.</p>"),
+        from_addr=settings.SUPPORT_FROM)
 
 def send_support_notify(to: str, ticket: str, subject: str, sender_name: str,
                         sender_email: str, plan_line: str, topic: str,
@@ -112,4 +113,5 @@ def send_support_notify(to: str, ticket: str, subject: str, sender_name: str,
         f"font-family:Helvetica,Arial,sans-serif'>{message}</div>"
     )
     return send(to, f"[{ticket}] {subject}",
-               _shell(f"New ticket — {ticket}", body), reply_to=reply_to)
+               _shell(f"New ticket — {ticket}", body), reply_to=reply_to,
+               from_addr=settings.SUPPORT_FROM)

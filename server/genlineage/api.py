@@ -20,7 +20,7 @@ from pydantic import BaseModel
 
 from . import jobs as jobq
 from .auth import (SESSION_COOKIE, create_session, destroy_session,
-                   get_current_user, hash_password, verify_password)
+                   get_current_user, require_verified, hash_password, verify_password)
 from .mailer import send as send_mail, send_reset, send_support_ack, send_support_notify, send_verify
 from .config import settings
 from .billing import (cancel_subscription, create_checkout, enforce_expiry,
@@ -140,14 +140,19 @@ def register(body: RegisterIn, response: Resp):
         db.add(u)
         db.commit()
         from .config import settings as _cfg
+        email_sent = False
         if _cfg.mail_enabled:
             try:
                 _tok = _issue_token(db, u.id, "verify", 24 * 60)
-                send_verify(u.email, f"{_cfg.API_URL}/api/auth/verify?token={_tok}")
-            except Exception:
-                pass  # signup must never fail because email did
+                email_sent = send_verify(u.email, f"{_cfg.API_URL}/api/auth/verify?token={_tok}")
+                if not email_sent:
+                    print(f"[register] verify email to {u.email} rejected by Resend — see [mailer] log above")
+            except Exception as e:
+                print(f"[register] verify email raised: {e!r}")
         _set_cookie(response, create_session(db, u.id))
-        return _user_out(u)
+        out = _user_out(u)
+        out["verification_email_sent"] = email_sent
+        return out
     finally:
         db.close()
 
@@ -443,9 +448,10 @@ def verify_send(user: User = Depends(get_current_user)):
         tok = _issue_token(db, user.id, "verify", 24 * 60)
     finally:
         db.close()
-    send_verify(user.email, f"{cfg.API_URL}/api/auth/verify?token={tok}")
+    sent = send_verify(user.email, f"{cfg.API_URL}/api/auth/verify?token={tok}")
+    if not sent:
+        raise HTTPException(502, "We couldn't send that email — check the server log, or try again shortly.")
     return {"ok": True}
-
 
 @app.get("/api/auth/verify")
 def verify_email(token: str = ""):
@@ -590,7 +596,7 @@ def _owned(query, model, user):
 
 
 @app.post("/api/projects")
-def create_project(body: ProjectIn, user: User = Depends(get_current_user)):
+def create_project(body: ProjectIn, user: User = Depends(require_verified)):
     db = SessionLocal()
     try:
         limit = _plan(user.plan)["projects"]
@@ -605,7 +611,7 @@ def create_project(body: ProjectIn, user: User = Depends(get_current_user)):
 
 
 @app.get("/api/projects")
-def list_projects(user: User = Depends(get_current_user)):
+def list_projects(user: User = Depends(require_verified)):
     db = SessionLocal()
     try:
         out = []
@@ -677,7 +683,7 @@ class JobIn(BaseModel):
 
 
 @app.post("/api/projects/{project_id}/jobs")
-def create_job(project_id: str, body: JobIn, user: User = Depends(get_current_user)):
+def create_job(project_id: str, body: JobIn, user: User = Depends(require_verified)):
     db = SessionLocal()
     try:
         proj = db.get(Project, project_id)
@@ -715,7 +721,7 @@ def create_job(project_id: str, body: JobIn, user: User = Depends(get_current_us
 
 
 @app.get("/api/jobs/{job_id}")
-def get_job(job_id: str, user: User = Depends(get_current_user)):
+def get_job(job_id: str, user: User = Depends(require_verified)):
     db = SessionLocal()
     try:
         job = db.get(Job, job_id)
@@ -819,7 +825,7 @@ async def job_stream(ws: WebSocket, job_id: str, ticket: str | None = None,
 
 # ---- works: the user's previous runs, gallery-style -------------------------
 @app.get("/api/works")
-def list_works(limit: int = 50, user: User = Depends(get_current_user)):
+def list_works(limit: int = 50, user: User = Depends(require_verified)):
     """Recent completed runs across all projects, newest first, each with a
     representative thumbnail (final cut, else last visual commit)."""
     db = SessionLocal()
@@ -900,8 +906,17 @@ def delete_work(job_id: str, user: User = Depends(get_current_user)):
 
 # ---- DAG / commits ------------------------------------------------------------
 @app.get("/api/projects/{project_id}/dag")
-def get_dag(project_id: str):
+def get_dag(project_id: str, user: User = Depends(require_verified)):
     """Graph straight from the append-only log — the tamper-evident view."""
+    db = SessionLocal()
+    try:
+        p = db.get(Project, project_id)
+        if not p:
+            raise HTTPException(404, "project not found")
+        if p.owner_id and p.owner_id != user.id:
+            raise HTTPException(403, "not your project")
+    finally:
+        db.close()
     storage = get_storage()
     nodes, edges, seen = [], [], set()
     for line in storage.read_dag(project_id):
@@ -938,7 +953,7 @@ def _genblaze_info(digest: str):
 
 
 @app.get("/api/commits/{digest}")
-def get_commit(digest: str, user: User = Depends(get_current_user)):
+def get_commit(digest: str, user: User = Depends(require_verified)):
     db = SessionLocal()
     storage = get_storage()
     try:

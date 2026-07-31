@@ -107,7 +107,7 @@ export default function Support() {
                   <div style={{ display: "grid", placeItems: "center", padding: "28px 0", textAlign: "center" }}>
                     <div className="display" style={{ fontSize: 30, color: "var(--ok)" }}>✓ SENT</div>
                     <p className="dim" style={{ fontSize: 14, marginTop: 12, lineHeight: 1.6, maxWidth: 340 }}>
-                      Thanks, {form.name.split(" ")[0]}. Your ticket {ticket && <b style={{ color: "var(--ink)" }}>{ticket}</b>} is in the queue — we'll reply
+                      Thanks, {form.name.split(" ")[0]}. Your ticket {ticket && <b style={{ color: "var(--ink)" }}>{ticket}</b>} is in the queue we'll reply
                       to <b style={{ color: "var(--ink)" }}>{form.email}</b> shortly.
                     </p>
                     <button className="btn" style={{ marginTop: 20 }} onClick={() => { setSent(false); setForm({ name: "", email: "", topic: TOPICS[0], message: "" }); }}>

@@ -61,9 +61,9 @@ class Settings:
 
     # --- email via Resend ---------------------------------------------------
     RESEND_API_KEY = _flag("RESEND_API_KEY")
-    MAIL_FROM = _flag("MAIL_FROM", "Genlineage <no-reply@myfamilyandi.xyz>")
-    SUPPORT_EMAIL = _flag("SUPPORT_EMAIL", "support@myfamilyandi.xyz")
-
+    MAIL_FROM = _flag("MAIL_FROM", "Genlineage <no-reply@genlineage.xyz>")
+    SUPPORT_EMAIL = _flag("SUPPORT_EMAIL", "support@genlineage.xyz")
+    SUPPORT_FROM = _flag("SUPPORT_FROM", "Genlineage Support <support@genlineage.xyz>")
     # --- Cloudflare Turnstile (bot protection) ---
     TURNSTILE_SITE_KEY = _flag("TURNSTILE_SITE_KEY")
     TURNSTILE_SECRET = _flag("TURNSTILE_SECRET")

@@ -9,8 +9,9 @@ import secrets
 from datetime import datetime, timedelta, timezone
 
 import bcrypt
-from fastapi import Cookie, HTTPException
+from fastapi import Cookie, Depends, HTTPException
 
+from .config import settings
 from .models import AuthSession, SessionLocal, User
 
 SESSION_COOKIE = "gl_session"
@@ -72,3 +73,11 @@ def get_current_user(gl_session: str | None = Cookie(default=None)) -> User:
     if not user:
         raise HTTPException(401, "Not signed in")
     return user
+
+
+def require_verified(user: User = Depends(get_current_user)) -> User:
+    
+    if user.email_verified:
+        return user
+    raise HTTPException(403, {"code": "email_unverified",
+                              "detail": "Verify your email to create projects or run pipelines."})

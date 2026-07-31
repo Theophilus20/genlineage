@@ -298,6 +298,7 @@ export default function Studio() {
   const [planOutline, setPlanOutline] = useState(null); // ghost graph while running
   const [payGate, setPayGate] = useState(null); // paid signup: block studio until pay/skip
   const [payBusy, setPayBusy] = useState(false);
+    const [pendingPlan, setPendingPlan] = useState(null);
   const [showDelete, setShowDelete] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -349,18 +350,27 @@ export default function Studio() {
       if (s) setSettings((prev) => ({ ...prev, ...JSON.parse(s) }));
       const q = new URLSearchParams(window.location.search);
       if (q.get("billing")) setPanel("billing");
-      if (q.get("verify") === "ok") { window.history.replaceState({}, "", "/studio"); flash("✓ Email verified — you're all set"); }
-      if (q.get("verify") === "expired") { window.history.replaceState({}, "", "/studio"); flash("That verification link expired — send a new one from the banner"); }
+      if (q.get("verify") === "ok") { window.history.replaceState({}, "", "/studio"); flash("✓ Email verified  you're all set"); }
+      if (q.get("verify") === "expired") { window.history.replaceState({}, "", "/studio"); flash("That verification link expired send a new one from the banner"); }
 
-      // arriving from a pricing CTA (?intent=standard&cycle=annual) → checkout
+    
       const intent = q.get("intent");
-      // decide the gate BEFORE first paint so the studio never flashes underneath
-      if ((intent === "standard" || intent === "premium") && !q.get("tx_ref")) setPayGate(intent);
       if ((intent === "standard" || intent === "premium") && !q.get("tx_ref")) {
-        window.history.replaceState({}, "", "/studio");
         const cyc0 = q.get("cycle");
         if (cyc0) localStorage.setItem("genlineage.cycle", cyc0 === "annual" ? "yearly" : cyc0);
-        setPayGate(intent);
+        localStorage.setItem("genlineage.pendingIntent", intent);
+        window.history.replaceState({}, "", "/studio");
+      }
+      // Resolve it: verified → jump straight to the payment modal.
+      // Unverified → keep it in state so the gate screen can say why.
+      const pendingIntent = localStorage.getItem("genlineage.pendingIntent");
+      if (pendingIntent) {
+        if (u.email_verified !== false) {
+          localStorage.removeItem("genlineage.pendingIntent");
+          setPayGate(pendingIntent);
+        } else {
+          setPendingPlan(pendingIntent);
+        }
       }
       if (false) {
         const cyc = q.get("cycle") || localStorage.getItem("genlineage.cycle") || "monthly";
@@ -380,13 +390,13 @@ export default function Studio() {
           flash(String(e.message || "Couldn't open checkout — upgrade below"));
         }
       }
-      // returning from Flutterwave: ?status=..&tx_ref=..&transaction_id=..
+      
       const txRef = q.get("tx_ref");
       const txId = q.get("transaction_id");
       if (txRef) {
         window.history.replaceState({}, "", "/studio"); // clean the URL
         if (q.get("status") === "cancelled") {
-          flash("Checkout cancelled — no charge was made");
+          flash("Checkout cancelled no charge was made");
           setPanel("billing");
         } else if (txId) {
           const vr = await fetch("/api/billing/verify", {
@@ -398,10 +408,10 @@ export default function Studio() {
           if (vr.ok && vd.ok) {
             setPlan(vd.plan);
             setUser((prev) => ({ ...prev, plan: vd.plan }));
-            flash(`✓ Payment confirmed — welcome to ${vd.plan[0].toUpperCase()}${vd.plan.slice(1)}`);
+            flash(`✓ Payment confirmed welcome to ${vd.plan[0].toUpperCase()}${vd.plan.slice(1)}`);
             setPanel("billing");
           } else {
-            flash(vd.detail || "Payment could not be verified — contact support");
+            flash(vd.detail || "Payment could not be verified contact support");
             setPanel("billing");
           }
         }
@@ -664,17 +674,39 @@ export default function Studio() {
     [dag, selected, running, planOutline]
   );
 
+  // The actual gate — nothing dashboard-shaped renders past this point
+  // until the account is verified.
+  if (user && user.email_verified === false) {
+    return (
+      <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 }}>
+        <div className="mono" style={{ maxWidth: 420, width: "100%", textAlign: "center", display: "grid", gap: 16, padding: 28, border: "1px solid var(--line-strong)", background: "var(--paper)" }}>
+          <img src="/logo.png" alt="" style={{ width: 34, margin: "0 auto" }} />
+          <b style={{ fontSize: 15 }}>
+            {pendingPlan
+              ? `Verify your email to continue with your ${pendingPlan[0].toUpperCase()}${pendingPlan.slice(1)} subscription`
+              : "Verify your email to continue"}
+          </b>
+          <p className="dim" style={{ fontSize: 11.5, lineHeight: 1.6, margin: 0 }}>
+            {pendingPlan
+              ? <>We sent a link to <b>{user.email}</b>. Click it to verify your account you'll come straight back here to finish setting up {pendingPlan[0].toUpperCase()}{pendingPlan.slice(1)}.</>
+              : <>We sent a link to <b>{user.email}</b>. Click it to unlock your studio nothing else works until then.</>}
+          </p>
+          <button className="btn solid" style={{ justifyContent: "center" }}
+            onClick={async () => {
+              const r = await fetch("/api/auth/verify/send", { method: "POST" });
+              flash(r.ok ? "Verification email sent check your inbox" : "Couldn't send just now");
+            }}>
+            Resend verification email
+          </button>
+          <button className="btn" style={{ justifyContent: "center" }} onClick={logout}>Log out</button>
+          {savedFlash && <p className="mono" style={{ fontSize: 11 }}>✓ {savedFlash}</p>}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ display: "grid", gridTemplateRows: "var(--nav-h) 1fr", height: "100vh", overflow: "hidden" }}>
-      {user && user.email_verified === false && (
-        <div className="mono" style={{ position: "fixed", inset: "auto 0 0 0", zIndex: 60, background: "var(--ink)", color: "var(--paper)", padding: "10px 16px", fontSize: 11.5, display: "flex", gap: 12, alignItems: "center", justifyContent: "center" }}>
-          <span>Verify your email to secure your account.</span>
-          <button className="mono" style={{ background: "var(--accent)", color: "#fff", border: 0, padding: "5px 12px", fontSize: 10.5, cursor: "pointer" }}
-            onClick={async () => { const r = await fetch("/api/auth/verify/send", { method: "POST" }); flash(r.ok ? "Verification email sent — check your inbox" : "Couldn't send just now"); }}>
-            Send verification email
-          </button>
-        </div>
-      )}
       {!sidebarOpen && !selected && (
         <button className="gl-burger mono" aria-label="Open pipeline panel" onClick={() => setSidebarOpen(true)}>
           ☰<span style={{ fontSize: 10, letterSpacing: "0.08em" }}>PIPELINE</span>
@@ -710,12 +742,12 @@ export default function Studio() {
           <div className="mono" style={{ maxWidth: 400, textAlign: "center", display: "grid", gap: 14, padding: 24, border: "1px solid var(--line-strong)", background: "var(--paper)" }}>
             <img src="/logo.png" alt="" style={{ width: 34, margin: "0 auto" }} />
             <b style={{ fontSize: 14 }}>Finish your {payGate} subscription</b>
-            <span className="dim" style={{ fontSize: 11.5, lineHeight: 1.6 }}>Your account is ready — complete payment to unlock {payGate}, or continue on the Free plan.</span>
+            <span className="dim" style={{ fontSize: 11.5, lineHeight: 1.6 }}>Your account is ready complete payment to unlock {payGate}, or continue on the Free plan.</span>
             <button className="btn solid" style={{ justifyContent: "center" }} disabled={payBusy}
               onClick={() => { setPayBusy(true); changePlan(payGate); }}>
               {payBusy ? "Opening secure checkout…" : "Pay securely with Flutterwave"}
             </button>
-            <button className="btn" style={{ justifyContent: "center" }} onClick={() => { setPayGate(null); flash("You're on the Free plan — upgrade any time in Billing"); }}>Continue on Free</button>
+            <button className="btn" style={{ justifyContent: "center" }} onClick={() => { setPayGate(null); flash("You're on the Free plan upgrade any time in Billing"); }}>Continue on Free</button>
           </div>
         </div>
       )}
@@ -1031,7 +1063,7 @@ export default function Studio() {
             <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", pointerEvents: "none" }}>
               <div style={{ textAlign: "center" }}>
                 <div className="display" style={{ fontSize: 40, color: "var(--ink-32)" }}>{dagLoading ? "LOADING LEDGER…" : "EMPTY DAG"}</div>
-                <p className="mono dim" style={{ fontSize: 12, marginTop: 8 }}>Run a pipeline — commits appear here as the graph grows.</p>
+                <p className="mono dim" style={{ fontSize: 12, marginTop: 8 }}>Run a pipeline commits appear here as the graph grows.</p>
               </div>
             </div>
           )}
@@ -1269,7 +1301,7 @@ export default function Studio() {
                 </div>
                 {!works.length && (
                   <p className="mono dim" style={{ fontSize: 12, marginTop: 20 }}>
-                    No works yet — run a pipeline and it will appear here.
+                    No works yet run a pipeline and it will appear here.
                   </p>
                 )}
               </div>
