@@ -131,7 +131,7 @@ def register(body: RegisterIn, response: Resp):
     db = SessionLocal()
     try:
         if db.query(User).filter_by(email=email).first():
-            raise HTTPException(409, "An account with this email already exists — log in instead.")
+            raise HTTPException(409, "An account with this email already exists log in instead.")
         # accounts start on Free — paid plans activate through Flutterwave checkout
         cycle = body.cycle if body.cycle in ("monthly", "annual") else "monthly"
         u = User(name=body.name.strip(), email=email,
@@ -146,7 +146,7 @@ def register(body: RegisterIn, response: Resp):
                 _tok = _issue_token(db, u.id, "verify", 24 * 60)
                 email_sent = send_verify(u.email, f"{_cfg.API_URL}/api/auth/verify?token={_tok}")
                 if not email_sent:
-                    print(f"[register] verify email to {u.email} rejected by Resend — see [mailer] log above")
+                    print(f"[register] verify email to {u.email} rejected by Resend see [mailer] log above")
             except Exception as e:
                 print(f"[register] verify email raised: {e!r}")
         _set_cookie(response, create_session(db, u.id))
