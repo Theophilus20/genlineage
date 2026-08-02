@@ -1219,7 +1219,7 @@ export default function Studio() {
                   </div>
                   <div style={{ display: "grid", gap: 6 }}>
                     <label htmlFor="p-email">Email</label>
-                    <input id="p-email" type="email" value={profileDraft.email} onChange={(e) => setProfileDraft({ ...profileDraft, email: e.target.value })} placeholder="you@studio.dev" />
+                    <input id="p-email" type="email" value={profileDraft.email} onChange={(e) => setProfileDraft({ ...profileDraft, email: e.target.value })} placeholder="you@gmail.com" />
                   </div>
                   <button className="btn solid" style={{ justifyContent: "center" }} onClick={saveProfile}>Save profile</button>
                 </div>

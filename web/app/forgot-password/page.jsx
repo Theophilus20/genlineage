@@ -52,7 +52,7 @@ export default function ForgotPassword() {
                 </p>
                 <div style={{ display: "grid", gap: 8, marginTop: 22 }}>
                   <label htmlFor="email">Email</label>
-                  <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@studio.dev" onKeyDown={(e) => e.key === "Enter" && submit()} />
+                  <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@gmail.com" onKeyDown={(e) => e.key === "Enter" && submit()} />
                 </div>
                 {err && <p className="mono" style={{ fontSize: 12, color: "var(--accent)", marginTop: 12 }}>{err}</p>}
                 <button className="btn solid" style={{ justifyContent: "center", width: "100%", marginTop: 20 }} onClick={submit}>

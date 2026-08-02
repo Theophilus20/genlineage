@@ -281,7 +281,7 @@ export default function AuthPanel({ mode }) {
                 )}
                 <div style={{ display: "grid", gap: 8 }}>
                   <label htmlFor="email">Email</label>
-                  <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@studio.dev" />
+                  <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@gmail.com" />
                 </div>
                 <PasswordField
                   id="password"

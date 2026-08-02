@@ -124,7 +124,7 @@ export default function Support() {
                       </div>
                       <div style={{ display: "grid", gap: 6 }}>
                         <label htmlFor="s-email">Email</label>
-                        <input id="s-email" type="email" value={form.email} onChange={set("email")} placeholder="you@studio.dev" />
+                        <input id="s-email" type="email" value={form.email} onChange={set("email")} placeholder="you@gmail.com" />
                       </div>
                     </div>
                     <div style={{ display: "grid", gap: 6 }}>
